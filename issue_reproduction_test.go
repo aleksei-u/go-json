@@ -11,24 +11,26 @@ import (
 
 func TestMinimalReproduction(t *testing.T) {
 	// Exact reproduction from the issue report
-	type testPanicBody struct {
-		Payload *testPanicDetail `json:"p,omitempty"`
-	}
 
-	type testDetail struct {
-		I testPanicItem `json:"i"`
-	}
-
-	type testItem struct {
+	type testPanic519Item struct {
 		A string `json:"a"`
-		B string `json:"b,omitempty"`
 	}
 
-	body := testPanicBody{
-		Payload: &testPanicDetail{
-			I: testPanicItem{
-				A: "a",
-				B: "b",
+	type testPanic519Detail struct {
+		I testPanic519Item `json:"i"`
+	}
+
+	// The issue presented only when the root structure has a pointer field on another structure and there is only one field
+	// and the inner structure has a field with to another structure as a first field
+	// and internal structure has a string field
+	type testPanic519Body struct {
+		Payload *testPanic519Detail `json:"p,omitempty"`
+	}
+
+	body := testPanic519Body{
+		Payload: &testPanic519Detail{
+			I: testPanic519Item{
+				A: "a_field",
 			},
 		},
 	}
