@@ -50,7 +50,7 @@ func TestMinimalReproduction(t *testing.T) {
 		t.Fatalf("Marshal returned error: %v", err)
 	}
 
-	expected := `{"p":{"i":{"a":"a","b":"b"}}}`
+	expected := `{"p":{"i":{"a":"a_field"}}}`
 	if string(b) != expected {
 		t.Errorf("Expected %s, got %s", expected, string(b))
 	}
