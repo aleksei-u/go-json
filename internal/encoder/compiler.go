@@ -598,13 +598,16 @@ func (c *Compiler) structCode(typ *runtime.Type, isPtr bool) (*StructCode, error
 		} else {
 			structCode := field.getStruct()
 			if structCode != nil {
-				if indirect {
-					// if parent is indirect type, set child indirect property to true
+				// Fix: Only propagate isIndirect to child struct if the field is actually a pointer
+				// Embedded (non-pointer) struct fields should NOT inherit isIndirect
+				// Otherwise IndirectFlags gets set incorrectly, causing extra pointer dereferencing
+				fieldIsPtr := field.typ.Kind() == reflect.Ptr
+				if indirect && fieldIsPtr {
+					// Parent is indirect AND field is a pointer -> child is indirect
 					structCode.isIndirect = true
 				} else {
-					// if parent is not indirect type, set child indirect property to false.
-					// but if parent's indirect is false and isPtr is true, then indirect must be true.
-					// Do this only if indirectConversion is enabled at the end of compileStruct.
+					// Field is embedded (not a pointer) OR parent is not indirect
+					// Do not propagate indirect to avoid incorrect pointer dereferencing
 					structCode.isIndirect = false
 				}
 			}
@@ -631,7 +634,9 @@ func toElemType(t *runtime.Type) *runtime.Type {
 func (c *Compiler) structFieldCode(structCode *StructCode, tag *runtime.StructTag, isPtr, isOnlyOneFirstField bool) (*StructFieldCode, error) {
 	field := tag.Field
 	fieldType := runtime.Type2RType(field.Type)
-	isIndirectSpecialCase := isPtr && isOnlyOneFirstField
+	// Disable the indirect special case optimization to prevent incorrect pointer arithmetic
+	// in nested single-field struct patterns
+	isIndirectSpecialCase := false
 	fieldCode := &StructFieldCode{
 		typ:           fieldType,
 		key:           tag.Key,
@@ -684,7 +689,11 @@ func (c *Compiler) structFieldCode(structCode *StructCode, tag *runtime.StructTa
 		fieldCode.isAddrForMarshaler = true
 		fieldCode.isNilCheck = false
 	default:
-		code, err := c.typeToCodeWithPtr(fieldType, isPtr)
+		// Fix: Only pass isPtr=true if the field itself is a pointer type
+		// Embedded struct fields should be compiled with isPtr=false
+		// Otherwise PtrNum gets incorrectly incremented, causing extra pointer dereferencing
+		fieldIsPtr := fieldType.Kind() == reflect.Ptr
+		code, err := c.typeToCodeWithPtr(fieldType, fieldIsPtr)
 		if err != nil {
 			return nil, err
 		}

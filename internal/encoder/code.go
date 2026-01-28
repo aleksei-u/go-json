@@ -3,6 +3,7 @@ package encoder
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"unsafe"
 
 	"github.com/goccy/go-json/internal/runtime"
@@ -942,8 +943,19 @@ func (c *PtrCode) Kind() CodeKind {
 
 func (c *PtrCode) ToOpcode(ctx *compileContext) Opcodes {
 	codes := c.value.ToOpcode(ctx)
+	originalOp := codes.First().Op
 	codes.First().Op = convertPtrOp(codes.First())
-	codes.First().PtrNum = c.ptrNum
+	// Only skip setting PtrNum for StructHead->StructPtrHead conversions without IndirectFlags
+	// These represent embedded value structs that don't need pointer dereferencing
+	// For all other opcodes (primitives, MarshalJSON, etc.), always set PtrNum
+	hasIndirect := (codes.First().Flags & IndirectFlags) != 0
+	isStructHeadConversion := originalOp != codes.First().Op &&
+		strings.Contains(originalOp.String(), "StructHead") &&
+		!strings.Contains(originalOp.String(), "StructPtrHead")
+	shouldSetPtrNum := hasIndirect || !isStructHeadConversion
+	if shouldSetPtrNum {
+		codes.First().PtrNum = c.ptrNum
+	}
 	return codes
 }
 
@@ -955,8 +967,18 @@ func (c *PtrCode) ToAnonymousOpcode(ctx *compileContext) Opcodes {
 	} else {
 		codes = c.value.ToOpcode(ctx)
 	}
+	originalOp := codes.First().Op
 	codes.First().Op = convertPtrOp(codes.First())
-	codes.First().PtrNum = c.ptrNum
+	// Only skip setting PtrNum for StructHead->StructPtrHead conversions without IndirectFlags
+	// These represent embedded value structs that don't need pointer dereferencing
+	hasIndirect := (codes.First().Flags & IndirectFlags) != 0
+	isStructHeadConversion := originalOp != codes.First().Op &&
+		strings.Contains(originalOp.String(), "StructHead") &&
+		!strings.Contains(originalOp.String(), "StructPtrHead")
+	shouldSetPtrNum := hasIndirect || !isStructHeadConversion
+	if shouldSetPtrNum {
+		codes.First().PtrNum = c.ptrNum
+	}
 	return codes
 }
 
